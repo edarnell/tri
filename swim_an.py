@@ -1,19 +1,13 @@
 import cv2
 import json
-import string
 
 # Usage:
-N_I = 31  # number of images
-i_p = [f'frames/swim{i:02d}.png' for i in range(1, N_I)] # image paths
+N_I = 30  # number of images
+i_p = [f'frames/swim{i:02d}.png' for i in range(1, N_I+1)] # image paths
+swim = cv2.imread(i_p[0])
 
 class IA:  # Image Annotator
     def __init__(ia):  # ip: image paths, ap: annotation paths
-        ia.SM = {
-        'w': 'waiting',
-        'r': 'resting',
-        's': 'swimming',
-        'u': 'submerged'
-        }
         ia.CS = {
         'y': (0, 255, 255),  # Yellow
         'g': (0, 128, 0),    # Green
@@ -21,8 +15,7 @@ class IA:  # Image Annotator
         'p': (147, 20, 255), # Pink
         'w': (255, 255, 255) # White
         }
-        ia.ci = 0  # current image index
-        ia.ti = ""  # current text
+        ia.i = 0  # current image index
         ia.p = None  # current position
         try:
             with open('swim.json', 'r') as f:
@@ -30,60 +23,54 @@ class IA:  # Image Annotator
         except FileNotFoundError:
             ia.an = [[] for _ in range(N_I)]
         ia.annot()
-        cv2.setMouseCallback('image', ia.ev)
+        cv2.setMouseCallback('swim', ia.ev)
         ia.af()
     
     def ev(ia, e, x, y, f, p):  # e: event, x: x-coordinate, y: y-coordinate, f: flags, p: parameters
         if e == cv2.EVENT_LBUTTONDOWN:
-            ia.ti = ""
+            for i, s in enumerate(ia.an[ia.i]):
+                for c, p in s.items():
+                    px, py = p  # Extract the x and y coordinates of the point
+                    distance = ((px - x) ** 2 + (py - y) ** 2) ** 0.5  # Calculate the Euclidean distance
+                    if distance < 10:
+                        del ia.an[ia.i][i]  # Remove the point if it's close to the clicked point
+                        break
             ia.p = (x, y)
-            ic = ia.im.copy()
-            cv2.circle(ic, (x, y), 4, (0, 255, 0), -1)
-            cv2.imshow('image', ic)
+            ia.annot()
 
     def af(ia):  # key press
         while True:
             k = cv2.waitKey(0)
-            print(k)
-            if k == 8:  # Backspace key
-                ia.ti = ia.ti[:-1]
-            elif k == ord('-'):  # Left arrow key
-                ia.ci = max(0, ia.ci - 1)  # Ensure index doesn't go below 0
-            elif k == ord('+'):  # Right arrow key
-                ia.ci = min(N_I - 1, ia.ci + 1)  # Ensure index doesn't exceed the number of images
+            c=chr(k & 0xFF)
+            if c == '-':  # Left arrow key
+                ia.i = max(0, ia.i - 1)  # Ensure index doesn't go below 0
+            elif c == '+':  # Right arrow key
+                ia.i = min(N_I - 1, ia.i + 1)  # Ensure index doesn't exceed the number of images
             elif k == 27:  # Escape key
-                ia.an[ia.ci] = []
+                ia.an[ia.i] = []
             elif k == -1:
                 with open('swim.json', 'w') as f:
-                    json.dump(ia.an, f, indent=4)
+                    json.dump(ia.an, f)
                 print("Annotations saved.")
                 # cv2.destroyAllWindows()
                 break
-            elif chr(k) in string.printable:
-                ia.ti += chr(k)
-            ia.img()
+            elif c in ia.CS:
+                ia.an[ia.i].append({c: ia.p})
+            else:
+                print(f"Key '{c}' ignored.")
+            ia.annot()
 
-    def annot(ia, i=None):
-        ia.im = cv2.imread(i_p[ia.ci])
-        a = ia.an[ia.ci] if i is None else [ia.an[ia.ci][i]]
+    def annot(ia):
+        global swim
+        swim = cv2.imread(i_p[ia.i])
+        a = ia.an[ia.i]
         for an in a:
-            x, y = an['p']
-            c, n = an['c'], an['n']
-            cv2.circle(ia.im, (x, y), 12, ia.CS[c], -1)
-            (w, h), _ = cv2.getTextSize(f"{n}", cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-            cv2.putText(ia.im, f"{n}", (x-w//2, y+h//2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2)
-        cv2.imshow('image', ia.im)
-
-    def img(ia):
-        if len(ia.ti) == 3:
-            c, n, s = ia.ti[0], ia.ti[1], ia.ti[2]
-            if ia.ci not in ia.an:
-                ia.an[ia.ci] = []
-            ia.an[ia.ci].append({"p": ia.p, "c": c, "s": s, "n": n})
-            ia.annot(-1)
-        elif ia.ti:
-            ic = ia.im.copy()
-            cv2.putText(ic, ia.ti, ia.p, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            cv2.imshow('image', ic)
+            for c,p in an.items():
+                x, y = p
+                cv2.circle(swim, (x, y), 8, ia.CS[c], -1)
+        if (ia.p) is not None:
+            cv2.circle(swim, ia.p, 4, (255, 0, 0), -1)
+        cv2.imshow('swim', swim)
+        cv2.setWindowTitle('swim', f'swim{ia.i+1:02d}')
 
 IA()  # ia: Image Annotator instance
