@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Swim Setup</title>
     <style>
@@ -8,42 +9,60 @@
             width: 45%;
             float: left;
         }
-        .click-overlay {
+
+        .snapshot {
+            display: none;
+            /* Initially hide snapshots */
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 10;
-            background: rgba(0, 0, 0, 0);
+            z-index: 20;
         }
-        .snapshot {
-            display: none; /* Initially hide snapshots */
+
+        .video {
+            display: block;
+            /* Initially show videos */
+        }
+
+        .canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 30;
         }
     </style>
 </head>
+
 <body>
     <h1>Pool Alignment</h1>
 
     <!-- Left Camera Section -->
     <div class="video-container">
         <h2 id="leftHeading">Left Cam</h2>
-        <img id='leftVideo' src='/stream/left' width='100%' />
+        <img id='leftVideo' src='/stream/left' width='100%' class="video" />
         <img id='leftSnapshot' class="snapshot" width="100%" /> <!-- Snapshot placeholder -->
     </div>
 
     <!-- Right Camera Section -->
     <div class="video-container">
         <h2 id="rightHeading">Right Cam</h2>
-        <img id='rightVideo' src='/stream/right' width='100%' />
+        <img id='rightVideo' src='/stream/right' width='100%' class="video" />
         <img id='rightSnapshot' class="snapshot" width="100%" /> <!-- Snapshot placeholder -->
     </div>
+
+    <!-- Canvas overlay for marking points on the video -->
+    <canvas id="canvasOverlay" class="canvas-overlay"></canvas>
 
     <script>
         let leftClicks = 0;
         let rightClicks = 0;
+        let zoomed = false;
 
-        // Helper function to capture a snapshot
+        // Helper function to capture a snapshot and switch to full screen
         function captureSnapshot(cam) {
             fetch('/snapshot?cam=' + cam)
                 .then(response => response.blob())
@@ -53,73 +72,31 @@
                         document.getElementById('leftVideo').style.display = 'none';  // Hide video
                         const snapshotImg = document.getElementById('leftSnapshot');
                         snapshotImg.src = snapshotURL;
-                        snapshotImg.style.display = 'block';  // Show snapshot
+                        snapshotImg.style.display = 'block';  // Show full-screen snapshot
                     } else if (cam === 'right') {
                         document.getElementById('rightVideo').style.display = 'none';  // Hide video
                         const snapshotImg = document.getElementById('rightSnapshot');
                         snapshotImg.src = snapshotURL;
-                        snapshotImg.style.display = 'block';  // Show snapshot
+                        snapshotImg.style.display = 'block';  // Show full-screen snapshot
                     }
                 });
         }
 
-        // Handle click on the Left heading
+        // Handle click on the Left heading to capture snapshot and go full screen
         document.getElementById('leftHeading').addEventListener('click', function () {
             captureSnapshot('left');
-            console.log("Left heading clicked - Snapshot captured");
+            console.log("Left video clicked - full-screen snapshot");
         });
 
-        // Handle click on the Right heading
+        // Handle click on the Right heading to capture snapshot and go full screen
         document.getElementById('rightHeading').addEventListener('click', function () {
             captureSnapshot('right');
-            console.log("Right heading clicked - Snapshot captured");
+            console.log("Right video clicked - full-screen snapshot");
         });
 
-        // Add event listeners for clicking on snapshots
-        document.getElementById('leftSnapshot').addEventListener('click', function (e) {
-            var rect = this.getBoundingClientRect();
-            var x = e.clientX - rect.left;
-            var y = e.clientY - rect.top;
-            console.log("Left snapshot clicked at: X=" + x + " Y=" + y);
-            leftClicks++;
+        // Restore video after setting points (to be handled based on clicks)
 
-            fetch('/click?cam=left&x=' + x + '&y=' + y + '&clicks=' + leftClicks)
-                .then(response => response.text())
-                .then(data => console.log("Server Response: " + data))
-                .catch(error => console.error("Error sending click:", error));
-
-            // Once 3 clicks are done, return to the video
-            if (leftClicks >= 3) {
-                this.style.display = 'none';
-                document.getElementById('leftVideo').style.display = 'block';
-                leftClicks = 0;  // Reset click counter
-            }
-        });
-
-        document.getElementById('rightSnapshot').addEventListener('click', function (e) {
-            var rect = this.getBoundingClientRect();
-            var x = e.clientX - rect.left;
-            var y = e.clientY - rect.top;
-            console.log("Right snapshot clicked at: X=" + x + " Y=" + y);
-            rightClicks++;
-
-            fetch('/click?cam=right&x=' + x + '&y=' + y + '&clicks=' + rightClicks)
-                .then(response => response.text())
-                .then(data => console.log("Server Response: " + data))
-                .catch(error => console.error("Error sending click:", error));
-
-            // Once 3 clicks are done, return to the video
-            if (rightClicks >= 3) {
-                this.style.display = 'none';
-                document.getElementById('rightVideo').style.display = 'block';
-                rightClicks = 0;  // Reset click counter
-            }
-        });
     </script>
 </body>
+
 </html>
-
-
-
-
-

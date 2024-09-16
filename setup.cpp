@@ -121,11 +121,18 @@ void startServer() {
         }
         // Serve left camera stream if available
         else if (req.find("/stream/left") != std::string::npos && leftCamAvail) {
-            serveSnapshot(0, new_sock);  // Left camera
+            serveSnapshot(0, new_sock);  // Stream left camera
         }
         // Serve right camera stream if available
         else if (req.find("/stream/right") != std::string::npos && rightCamAvail) {
-            serveSnapshot(2, new_sock);  // Right camera (/dev/video2)
+            serveSnapshot(2, new_sock);  // Stream right camera (/dev/video2)
+        }
+        // Serve snapshot requests
+        else if (req.find("/snapshot?cam=left") != std::string::npos && leftCamAvail) {
+            serveSnapshot(0, new_sock);  // Serve left camera snapshot
+        }
+        else if (req.find("/snapshot?cam=right") != std::string::npos && rightCamAvail) {
+            serveSnapshot(2, new_sock);  // Serve right camera snapshot
         }
         // Handle click requests
         else if (req.find("/click") != std::string::npos) {
@@ -147,6 +154,7 @@ int main() {
     startServer();
     return 0;
 }
+
 
 
 
