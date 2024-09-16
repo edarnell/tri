@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Swim Setup</title>
+    <style>
+        .video-container {
+            position: relative;
+            width: 45%;
+            float: left;
+        }
+        .click-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0);
+        }
+        .snapshot {
+            display: none; /* Initially hide snapshots */
+        }
+    </style>
+</head>
+<body>
+    <h1>Pool Alignment</h1>
+
+    <!-- Left Camera Section -->
+    <div class="video-container">
+        <h2 id="leftHeading">Left Cam</h2>
+        <img id='leftVideo' src='/stream/left' width='100%' />
+        <img id='leftSnapshot' class="snapshot" width="100%" /> <!-- Snapshot placeholder -->
+    </div>
+
+    <!-- Right Camera Section -->
+    <div class="video-container">
+        <h2 id="rightHeading">Right Cam</h2>
+        <img id='rightVideo' src='/stream/right' width='100%' />
+        <img id='rightSnapshot' class="snapshot" width="100%" /> <!-- Snapshot placeholder -->
+    </div>
+
+    <script>
+        let leftClicks = 0;
+        let rightClicks = 0;
+
+        // Helper function to capture a snapshot
+        function captureSnapshot(cam) {
+            fetch('/snapshot?cam=' + cam)
+                .then(response => response.blob())
+                .then(blob => {
+                    const snapshotURL = URL.createObjectURL(blob);
+                    if (cam === 'left') {
+                        document.getElementById('leftVideo').style.display = 'none';  // Hide video
+                        const snapshotImg = document.getElementById('leftSnapshot');
+                        snapshotImg.src = snapshotURL;
+                        snapshotImg.style.display = 'block';  // Show snapshot
+                    } else if (cam === 'right') {
+                        document.getElementById('rightVideo').style.display = 'none';  // Hide video
+                        const snapshotImg = document.getElementById('rightSnapshot');
+                        snapshotImg.src = snapshotURL;
+                        snapshotImg.style.display = 'block';  // Show snapshot
+                    }
+                });
+        }
+
+        // Handle click on the Left heading
+        document.getElementById('leftHeading').addEventListener('click', function () {
+            captureSnapshot('left');
+            console.log("Left heading clicked - Snapshot captured");
+        });
+
+        // Handle click on the Right heading
+        document.getElementById('rightHeading').addEventListener('click', function () {
+            captureSnapshot('right');
+            console.log("Right heading clicked - Snapshot captured");
+        });
+
+        // Add event listeners for clicking on snapshots
+        document.getElementById('leftSnapshot').addEventListener('click', function (e) {
+            var rect = this.getBoundingClientRect();
+            var x = e.clientX - rect.left;
+            var y = e.clientY - rect.top;
+            console.log("Left snapshot clicked at: X=" + x + " Y=" + y);
+            leftClicks++;
+
+            fetch('/click?cam=left&x=' + x + '&y=' + y + '&clicks=' + leftClicks)
+                .then(response => response.text())
+                .then(data => console.log("Server Response: " + data))
+                .catch(error => console.error("Error sending click:", error));
+
+            // Once 3 clicks are done, return to the video
+            if (leftClicks >= 3) {
+                this.style.display = 'none';
+                document.getElementById('leftVideo').style.display = 'block';
+                leftClicks = 0;  // Reset click counter
+            }
+        });
+
+        document.getElementById('rightSnapshot').addEventListener('click', function (e) {
+            var rect = this.getBoundingClientRect();
+            var x = e.clientX - rect.left;
+            var y = e.clientY - rect.top;
+            console.log("Right snapshot clicked at: X=" + x + " Y=" + y);
+            rightClicks++;
+
+            fetch('/click?cam=right&x=' + x + '&y=' + y + '&clicks=' + rightClicks)
+                .then(response => response.text())
+                .then(data => console.log("Server Response: " + data))
+                .catch(error => console.error("Error sending click:", error));
+
+            // Once 3 clicks are done, return to the video
+            if (rightClicks >= 3) {
+                this.style.display = 'none';
+                document.getElementById('rightVideo').style.display = 'block';
+                rightClicks = 0;  // Reset click counter
+            }
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
