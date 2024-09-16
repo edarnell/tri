@@ -3,105 +3,100 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
-#include <opencv2/opencv.hpp> // For webcam handling
+#include <opencv2/opencv.hpp>
 #include <sstream>
 
-// Function to serve a file (e.g., HTML file)
-std::string serveFile(const std::string& filename, const std::string& contentType) {
-    std::ifstream file(filename, std::ios::in | std::ios::binary);
+// Serve file (e.g., HTML)
+std::string serveFile(const std::string &fname, const std::string &ctype) {
+    std::ifstream file(fname, std::ios::in | std::ios::binary);
     if (!file.is_open()) {
         return "HTTP/1.1 404 Not Found\n\nFile Not Found!";
     }
 
-    std::stringstream response;
-    response << "HTTP/1.1 200 OK\n";
-    response << "Content-Type: " << contentType << "\n\n";
-    response << file.rdbuf();
+    std::stringstream res;
+    res << "HTTP/1.1 200 OK\n";
+    res << "Content-Type: " << ctype << "\n\n";
+    res << file.rdbuf();
     file.close();
 
-    return response.str();
+    return res.str();
 }
 
-// Serve a snapshot image
-void serveSnapshot(int camIndex, int client_socket) {
-    cv::VideoCapture cap(camIndex, cv::CAP_V4L2);
-    if (!cap.isOpened()) {
-        std::cerr << "Failed to open camera " << camIndex << std::endl;
-        std::string errorResponse = "HTTP/1.1 500 Internal Server Error\n\nFailed to open camera.";
-        send(client_socket, errorResponse.c_str(), errorResponse.size(), 0);
+// Serve snapshot image
+void serveSnapshot(int camIdx, int sock) {
+    cv::VideoCapture cam(camIdx, cv::CAP_V4L2);
+    if (!cam.isOpened()) {
+        std::cerr << "Failed to open camera " << camIdx << std::endl;
+        std::string errRes = "HTTP/1.1 500 Internal Server Error\n\nFailed to open camera.";
+        send(sock, errRes.c_str(), errRes.size(), 0);
         return;
     }
 
     cv::Mat frame;
-    cap >> frame; // Capture a single frame
-    cap.release();
+    cam >> frame;  // Capture a frame
+    cam.release();
 
     if (frame.empty()) {
-        std::cerr << "Failed to capture snapshot from camera " << camIndex << std::endl;
-        std::string errorResponse = "HTTP/1.1 500 Internal Server Error\n\nFailed to capture snapshot.";
-        send(client_socket, errorResponse.c_str(), errorResponse.size(), 0);
+        std::cerr << "Failed to capture snapshot from camera " << camIdx << std::endl;
+        std::string errRes = "HTTP/1.1 500 Internal Server Error\n\nFailed to capture snapshot.";
+        send(sock, errRes.c_str(), errRes.size(), 0);
         return;
     }
 
     std::vector<uchar> buffer;
     cv::imencode(".jpg", frame, buffer);
 
-    std::string response = "HTTP/1.1 200 OK\nContent-Type: image/jpeg\nContent-Length: " + std::to_string(buffer.size()) + "\n\n";
-    send(client_socket, response.c_str(), response.size(), 0);
-    send(client_socket, reinterpret_cast<const char*>(buffer.data()), buffer.size(), 0);
+    std::string res = "HTTP/1.1 200 OK\nContent-Type: image/jpeg\nContent-Length: " + std::to_string(buffer.size()) + "\n\n";
+    send(sock, res.c_str(), res.size(), 0);
+    send(sock, reinterpret_cast<const char*>(buffer.data()), buffer.size(), 0);
 }
 
-// Handle click requests with debug output
-void handleClick(const std::string& request) {
-    std::cout << "Received click request: " << request << std::endl;
+// Handle click requests
+void handleClick(const std::string &req) {
+    std::cout << "Received click request: " << req << std::endl;
 
-    std::string cam = request.find("cam=left") != std::string::npos ? "left" : "right";
-    size_t xPos = request.find("x=") + 2;
-    size_t yPos = request.find("y=") + 2;
-
-    if (xPos == std::string::npos || yPos == std::string::npos) {
-        std::cerr << "Error parsing click coordinates!" << std::endl;
-        return;
-    }
+    std::string cam = req.find("cam=left") != std::string::npos ? "left" : "right";
+    size_t xPos = req.find("x=") + 2;
+    size_t yPos = req.find("y=") + 2;
 
     try {
-        int x = std::stoi(request.substr(xPos, request.find('&', xPos) - xPos));
-        int y = std::stoi(request.substr(yPos, request.find(' ', yPos) - yPos));
+        int x = std::stoi(req.substr(xPos, req.find('&', xPos) - xPos));
+        int y = std::stoi(req.substr(yPos, req.find(' ', yPos) - yPos));
         std::cout << "Click on " << cam << " camera at coordinates: X=" << x << " Y=" << y << std::endl;
-    } catch (const std::exception& e) {
-        std::cerr << "Error converting coordinates: " << e.what() << std::endl;
+    } catch (const std::exception &e) {
+        std::cerr << "Error parsing click coordinates: " << e.what() << std::endl;
     }
 }
 
-// Main HTTP server function with snapshot handling
+// Main HTTP server function
 void startServer() {
-    int server_fd, new_socket;
-    struct sockaddr_in address;
-    int addrlen = sizeof(address);
-    char buffer[1024] = {0};
+    int serv_fd, new_sock;
+    struct sockaddr_in addr;
+    int addrlen = sizeof(addr);
+    char buf[1024] = {0};
 
     // Check if cameras are available
-    bool leftCamAvailable = cv::VideoCapture(0).isOpened();
-    bool rightCamAvailable = cv::VideoCapture(1).isOpened();
+    bool leftCamAvail = cv::VideoCapture(0).isOpened();  // Left camera
+    bool rightCamAvail = cv::VideoCapture(2).isOpened();  // Right camera updated to /dev/video2
 
     // Create socket
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+    if ((serv_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         std::cerr << "Socket creation error" << std::endl;
         exit(EXIT_FAILURE);
     }
 
     // Bind to port 8080
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(8080);
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(8080);
 
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    if (bind(serv_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         std::cerr << "Bind failed" << std::endl;
         exit(EXIT_FAILURE);
     }
 
     // Listen for connections
-    if (listen(server_fd, 3) < 0) {
+    if (listen(serv_fd, 3) < 0) {
         std::cerr << "Listen failed" << std::endl;
         exit(EXIT_FAILURE);
     }
@@ -109,42 +104,42 @@ void startServer() {
     std::cout << "Server running on port 8080..." << std::endl;
 
     while (true) {
-        if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0) {
+        if ((new_sock = accept(serv_fd, (struct sockaddr *)&addr, (socklen_t *)&addrlen)) < 0) {
             std::cerr << "Accept failed" << std::endl;
             exit(EXIT_FAILURE);
         }
 
-        // Read the HTTP request
-        read(new_socket, buffer, 1024);
-        std::string request(buffer);
-        std::cout << "Received request: " << request << std::endl;
+        // Read HTTP request
+        read(new_sock, buf, 1024);
+        std::string req(buf);
+        std::cout << "Received request: " << req << std::endl;
 
         // Serve the HTML file
-        if (request.find("GET / ") != std::string::npos || request.find("GET /setup.html") != std::string::npos) {
-            std::string response = serveFile("setup.html", "text/html");
-            send(new_socket, response.c_str(), response.size(), 0);
+        if (req.find("GET / ") != std::string::npos || req.find("GET /setup.html") != std::string::npos) {
+            std::string res = serveFile("setup.html", "text/html");
+            send(new_sock, res.c_str(), res.size(), 0);
         }
-        // Serve left camera stream only if available
-        else if (request.find("/stream/left") != std::string::npos && leftCamAvailable) {
-            serveSnapshot(0, new_socket);  // Left camera snapshot
+        // Serve left camera stream if available
+        else if (req.find("/stream/left") != std::string::npos && leftCamAvail) {
+            serveSnapshot(0, new_sock);  // Left camera
         }
-        // Serve right camera stream only if available
-        else if (request.find("/stream/right") != std::string::npos && rightCamAvailable) {
-            serveSnapshot(1, new_socket);  // Right camera snapshot
+        // Serve right camera stream if available
+        else if (req.find("/stream/right") != std::string::npos && rightCamAvail) {
+            serveSnapshot(2, new_sock);  // Right camera (/dev/video2)
         }
         // Handle click requests
-        else if (request.find("/click") != std::string::npos) {
-            handleClick(request);
-            std::string clickResponse = "HTTP/1.1 200 OK\n\nClick received.";
-            send(new_socket, clickResponse.c_str(), clickResponse.size(), 0);
+        else if (req.find("/click") != std::string::npos) {
+            handleClick(req);
+            std::string clickRes = "HTTP/1.1 200 OK\n\nClick received.";
+            send(new_sock, clickRes.c_str(), clickRes.size(), 0);
         }
         // Default 404 for other requests
         else {
-            std::string response = "HTTP/1.1 404 Not Found\n\n";
-            send(new_socket, response.c_str(), response.size(), 0);
+            std::string res = "HTTP/1.1 404 Not Found\n\n";
+            send(new_sock, res.c_str(), res.size(), 0);
         }
 
-        close(new_socket);
+        close(new_sock);
     }
 }
 
@@ -152,6 +147,7 @@ int main() {
     startServer();
     return 0;
 }
+
 
 
 
