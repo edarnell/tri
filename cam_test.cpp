@@ -2,6 +2,7 @@
 #include "cam_server.h"  // Assuming cam_server is for streaming
 #include <sys/mman.h>  // For munmap
 #include <cstdio>
+#include <sys/mman.h>
 #include <unistd.h>  // For sleep()
 
 #define PORT 8080

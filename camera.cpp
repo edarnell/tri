@@ -60,6 +60,9 @@ int initialize_camera(int &fd, const char *device, struct buffer &cam_buffer, si
     buf.index = 0;
 
     if (ioctl(fd, VIDIOC_QUERYBUF, &buf) == -1) {
+    } else {
+      printf("Buffer length: %zu, Buffer offset: %zu\n", buf.length, buf.m.offset);
+
         perror("Querying Buffer");
         close(fd);
         return -1;
@@ -122,6 +125,21 @@ int capture_high_res_frame(int fd, struct buffer &cam_buffer, size_t &frame_size
 
 // Switch back to low resolution after high-res capture
 int switch_to_low_res(int fd, struct buffer &cam_buffer, size_t &frame_size) {
+{
+    struct v4l2_format fmt;
+    memset(&fmt, 0, sizeof(fmt));
+    fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    fmt.fmt.pix.width = LOW_RES_WIDTH;
+    fmt.fmt.pix.height = LOW_RES_HEIGHT;
+    fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
+    fmt.fmt.pix.field = V4L2_FIELD_INTERLACED;
+
+    if (ioctl(fd, VIDIOC_S_FMT, &fmt) == -1) {
+      perror("Switching back to low-resolution format");
+      return -1;
+    }
+    return capture_frame(fd, cam_buffer, frame_size);
+}
     struct v4l2_format fmt;
     memset(&fmt, 0, sizeof(fmt));
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
