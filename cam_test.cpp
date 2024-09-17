@@ -26,7 +26,7 @@ int main() {
 
     // Simulate capturing a high-resolution frame on a zoom or click event
     printf("Capturing high-resolution frame...\n");
-    if (capture_high_res_frame(fd, cam_buffer, frame_size) != 0) {
+    if (# capture_high_res_frame(fd, cam_buffer, frame_size) != 0) {
         printf("Failed to capture high-resolution frame\n");
         return 1;
     }
