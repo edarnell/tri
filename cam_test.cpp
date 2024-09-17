@@ -1,6 +1,8 @@
 #include "camera.h"
 #include "cam_server.h"
 #include <cstdio>
+#include <unistd.h>  // For close()
+#include <sys/mman.h>  // For munmap()
 
 #define PORT 8080
 
@@ -25,8 +27,8 @@ int main() {
     start_server(PORT, cam_buffer, frame_size);
 
     // Clean up resources
-    munmap(cam_buffer.start, cam_buffer.length);
-    close(fd);
+    munmap(cam_buffer.start, cam_buffer.length);  // Unmap the memory-mapped buffer
+    close(fd);  // Close the file descriptor
 
     return 0;
 }
