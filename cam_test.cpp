@@ -1,20 +1,33 @@
-#include <opencv2/opencv.hpp>
+#include "camera.h"
+#include "cam_server.h"
+#include <cstdio>
+
+#define PORT 8080
 
 int main() {
-    cv::VideoCapture cap(0);  // Open /dev/video0
-    if (!cap.isOpened()) {
-        std::cerr << "Error: Could not open camera" << std::endl;
-        return -1;
+    int fd;
+    struct buffer cam_buffer;
+    size_t frame_size;
+
+    // Initialize the camera
+    if (initialize_camera(fd, "/dev/video0", cam_buffer, frame_size) != 0) {
+        printf("Failed to initialize camera\n");
+        return 1;
     }
 
-    cv::Mat frame;
-    while (true) {
-        cap >> frame;
-        if (frame.empty()) break;
-        cv::imshow("Webcam", frame);
-        if (cv::waitKey(30) >= 0) break;  // Exit on key press
+    // Capture a frame to ensure the camera is working
+    if (capture_frame(fd, cam_buffer, frame_size) != 0) {
+        printf("Failed to capture frame\n");
+        return 1;
     }
 
-    cap.release();
+    // Start the server to stream video
+    start_server(PORT, cam_buffer, frame_size);
+
+    // Clean up resources
+    munmap(cam_buffer.start, cam_buffer.length);
+    close(fd);
+
     return 0;
 }
+
