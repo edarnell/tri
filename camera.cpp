@@ -8,6 +8,16 @@
 // Function to stop camera streaming
 int stop_streaming(int fd) {
     int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+    // Try stopping the stream
+    if (ioctl(fd, VIDIOC_STREAMOFF, &type) == -1) {
+        perror("Stopping stream");
+        return -1;
+    }
+
+    printf("Camera streaming stopped.\n");
+    return 0;
+
     if (ioctl(fd, VIDIOC_STREAMOFF, &type) == -1) {
         perror("Stopping stream");
         return -1;
