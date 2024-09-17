@@ -5,20 +5,31 @@
 #include <sys/mman.h>
 #include <cstring>
 #include <cstdio>
+#include <thread>
+#include <chrono>
 bool streaming_active = false;  // Global flag to track streaming state
 
+// Function to stop camera streaming
 // Function to stop camera streaming
 int stop_streaming(int fd) {
     if (!streaming_active) {
         printf("Streaming was not active, skipping stop.\n");
         return 0;  // Streaming wasn't active, no need to stop
     }
+    int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    if (ioctl(fd, VIDIOC_STREAMOFF, &type) == -1) {
+        return -1;
+    }
+    streaming_active = false;
+    printf("Camera streaming stopped.\n");
+    return 0;
+}
+    }
 
     int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
     // Try stopping the stream
     if (ioctl(fd, VIDIOC_STREAMOFF, &type) == -1) {
-        perror("Stopping stream");
         return -1;
     }
 
@@ -29,7 +40,6 @@ int stop_streaming(int fd) {
 
     // Try stopping the stream
     if (ioctl(fd, VIDIOC_STREAMOFF, &type) == -1) {
-        perror("Stopping stream");
         return -1;
     }
 
@@ -37,7 +47,6 @@ int stop_streaming(int fd) {
     return 0;
 
     if (ioctl(fd, VIDIOC_STREAMOFF, &type) == -1) {
-        perror("Stopping stream");
         return -1;
     }
     printf("Camera streaming stopped.\n");
