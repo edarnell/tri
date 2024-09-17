@@ -5,6 +5,17 @@
 #include <sys/mman.h>
 #include <cstring>
 #include <cstdio>
+// Function to stop camera streaming
+int stop_streaming(int fd) {
+    int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    if (ioctl(fd, VIDIOC_STREAMOFF, &type) == -1) {
+        perror("Stopping stream");
+        return -1;
+    }
+    printf("Camera streaming stopped.\n");
+    return 0;
+}
+
 #include <iostream>
 
 #define LOW_RES_WIDTH 640
@@ -22,6 +33,11 @@ int initialize_camera(int &fd, const char *device, struct buffer &cam_buffer, si
     fd = open(device, O_RDWR);
     if (fd == -1) {
         perror("Opening video device");
+        return -1;
+    }
+
+    // Stop the low-resolution stream first
+    if (stop_streaming(fd) != 0) {
         return -1;
     }
 
@@ -114,6 +130,11 @@ int capture_frame(int fd, struct buffer &cam_buffer, size_t &frame_size) {
 
 // Capture high-resolution frame for AI training data
 int capture_high_res_frame(int fd, struct buffer &cam_buffer, size_t &frame_size) {
+    // Stop the low-resolution stream first
+    if (stop_streaming(fd) != 0) {
+        return -1;
+    }
+
     struct v4l2_format fmt;
     memset(&fmt, 0, sizeof(fmt));
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -128,11 +149,23 @@ int capture_high_res_frame(int fd, struct buffer &cam_buffer, size_t &frame_size
     }
 
     // Capture a single frame
+    // Start streaming again after switching resolution
+    int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    if (ioctl(fd, VIDIOC_STREAMON, &type) == -1) {
+        perror("Restarting stream after switching to low resolution");
+        return -1;
+    }
+
     return capture_frame(fd, cam_buffer, frame_size);  // Reuse the capture_frame logic
 }
 
 // Switch back to low resolution after high-res capture
 int switch_to_low_res(int fd, struct buffer &cam_buffer, size_t &frame_size) {
+    // Stop the low-resolution stream first
+    if (stop_streaming(fd) != 0) {
+        return -1;
+    }
+
     struct v4l2_format fmt;
     memset(&fmt, 0, sizeof(fmt));
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -147,6 +180,13 @@ int switch_to_low_res(int fd, struct buffer &cam_buffer, size_t &frame_size) {
     }
 
     // Capture the next low-res frame for streaming
+    // Start streaming again after switching resolution
+    int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    if (ioctl(fd, VIDIOC_STREAMON, &type) == -1) {
+        perror("Restarting stream after switching to low resolution");
+        return -1;
+    }
+
     return capture_frame(fd, cam_buffer, frame_size);
 }
 
